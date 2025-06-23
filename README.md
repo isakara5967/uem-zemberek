@@ -40,21 +40,14 @@ You can install the package with pip
 Example usages can be found in [examples.py](zemberek/examples.py)
 
 ## Notes
-There are some minor changes in codes where original contains some Java specific
-functionality and data structures. We used Python 
-equivalents as much as we could but sometimes we needed to change them. And it
-affects the performance and accuracy a bit.
+This project is a Python port of the original Java implementation, and some adjustments were necessary due to differences between the two languages. While we aimed to use Python equivalents for Java-specific features and data structures wherever possible, a few changes were required that may slightly affect the overall performance and accuracy.
 
-In [MultiLevelMphf](zemberek/core/hash/multi_level_mphf.py) class, in the original Java
-implementation, there are some integer multiplication operations which I
-tried to reimplement using vanilla Python 'int', but the results were not the
-same. Then I tried it with numpy.int32 and numpy.float32, since default java
-int and float types are 4 byte. The results were the same with Java, however, oftenly
-these operations produced RuntimeWarning as the multiplication caused overflow. In Java 
-there were no overflow warnings whatsoever. I could not find a reasonable explanation to
-this situation, nor I could find a better way to implement it. So I suppressed overflow warnings
-for MultiLevelMphf. Therefore, please be aware that, this is not a healthy behaviour, and you should 
-be careful using this code.
+In particular, within the MultiLevelMphf class, the original Java code includes several integer multiplication operations. Initially, we reimplemented these using Python’s built-in int type, but the results did not match the original behavior. To more closely replicate Java’s default 4-byte int and float behavior, we switched to using numpy.int32 and numpy.float32. This yielded results consistent with the Java version, but introduced a new issue: frequent RuntimeWarnings due to overflow in multiplication operations.
+
+Java silently handles overflows without warning, while NumPy alerts the user—this discrepancy is likely due to differences in how the two environments manage numeric overflows. Despite efforts, we couldn’t find a more accurate or safer alternative, so overflow warnings have been suppressed specifically for MultiLevelMphf.
+
+Please note: While this approach reproduces the original behavior, suppressing warnings is not ideal. Use this part of the code with caution, and be aware that it may not handle all edge cases reliably.
+
 
 
 
