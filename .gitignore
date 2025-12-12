@@ -1,3 +1,17 @@
+# Build artifacts
 /build/
 /dist/
-/zemberek_python.egg-info/
+
+# Egg info
+*.egg-info/
+.eggs/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Virtual environments
+venv/
+.venv/
+env/
