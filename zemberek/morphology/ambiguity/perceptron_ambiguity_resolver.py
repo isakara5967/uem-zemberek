@@ -28,7 +28,7 @@ class PerceptronAmbiguityResolver(AmbiguityResolver):
     @classmethod
     def from_resource(cls, resource_path: str) -> 'PerceptronAmbiguityResolver':
         lookup = CompressedWeights.deserialize(resource_path)
-        extractor = cls.FeatureExtractor(use_cache=False)
+        extractor = cls.FeatureExtractor(use_cache=True)
         return cls(lookup, extractor)
 
     def disambiguate(self, sentence: str, all_analyses: List[WordAnalysis]) -> SentenceAnalysis:

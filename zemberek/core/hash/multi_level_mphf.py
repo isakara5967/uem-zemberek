@@ -2,6 +2,7 @@ import numpy as np
 
 from typing import List, BinaryIO, Tuple, Optional, Union
 from struct import unpack
+from functools import lru_cache
 
 from zemberek.core.hash.mphf import Mphf
 
@@ -38,6 +39,7 @@ class MultiLevelMphf(Mphf):
         return MultiLevelMphf(tuple(indexes))
 
     @staticmethod
+    @lru_cache(maxsize=50000)
     def hash_for_str(data: str, seed: int) -> np.int32:
         d = np.int32(seed) if seed > 0 else MultiLevelMphf.INITIAL_HASH_SEED
 

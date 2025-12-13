@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, BinaryIO
+from functools import lru_cache
 
 import struct
 import numpy as np
@@ -54,6 +55,7 @@ class LossyIntLookup:
         return np.float32(struct.unpack('>f', s)[0])
 
     @staticmethod
+    @lru_cache(maxsize=50000)
     def java_hash_code(s: str) -> np.int32:
         arr = np.asarray([ord(c) for c in s], dtype=np.int32)
         powers = np.arange(arr.shape[0], dtype=np.int32)[::-1]
