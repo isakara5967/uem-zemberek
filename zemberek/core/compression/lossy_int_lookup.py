@@ -11,6 +11,17 @@ if TYPE_CHECKING:
 
 from zemberek.core.hash.multi_level_mphf import MultiLevelMphf
 
+# Cache manager instance (lazy initialized)
+_cache_manager = None
+
+def _get_cache_manager():
+    """Lazy initialization of cache manager."""
+    global _cache_manager
+    if _cache_manager is None:
+        from zemberek.cache import CacheManager
+        _cache_manager = CacheManager.get_instance()
+    return _cache_manager
+
 
 class LossyIntLookup:
 
@@ -56,12 +67,22 @@ class LossyIntLookup:
 
     @staticmethod
     @lru_cache(maxsize=50000)
-    def java_hash_code(s: str) -> np.int32:
+    def _java_hash_code_compute(s: str) -> np.int32:
+        """L1 cached computation of java hash code."""
         arr = np.asarray([ord(c) for c in s], dtype=np.int32)
         powers = np.arange(arr.shape[0], dtype=np.int32)[::-1]
         bases = np.full((arr.shape[0],), 31, dtype=np.int32)
         result = np.sum(arr * (np.power(bases, powers)), dtype=np.int32)
         return np.int32(result)
+
+    @staticmethod
+    def java_hash_code(s: str) -> np.int32:
+        """
+        Compute java-compatible hash code with multi-level caching.
+        L0 (pre-computed) -> L2 (shared) -> L1 (lru_cache) -> compute
+        """
+        manager = _get_cache_manager()
+        return np.int32(manager.get_java_hash(s, LossyIntLookup._java_hash_code_compute))
 
     @classmethod
     def deserialize(cls, dis: BinaryIO) -> 'LossyIntLookup':

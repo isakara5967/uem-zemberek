@@ -1,7 +1,8 @@
+include zemberek/resources/*.bin
 include zemberek/resources/*.txt
-include zemberek/resources/normalization/*.txt
-include zemberek/resources/normalization/*.pickle
-include zemberek/resources/phonetics/*.txt
 include zemberek/resources/*.csv
 include zemberek/resources/*.slm
-include zemberek/resources/ambiguity/*
+include zemberek/resources/*.pickle
+recursive-include zemberek/resources/ambiguity *
+recursive-include zemberek/resources/normalization *
+recursive-include zemberek/resources/phonetics *

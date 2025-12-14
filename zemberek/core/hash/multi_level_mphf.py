@@ -8,6 +8,17 @@ from zemberek.core.hash.mphf import Mphf
 
 np.seterr(over='ignore')
 
+# Cache manager instance (lazy initialized)
+_cache_manager = None
+
+def _get_cache_manager():
+    """Lazy initialization of cache manager."""
+    global _cache_manager
+    if _cache_manager is None:
+        from zemberek.cache import CacheManager
+        _cache_manager = CacheManager.get_instance()
+    return _cache_manager
+
 
 class MultiLevelMphf(Mphf):
     """
@@ -40,7 +51,8 @@ class MultiLevelMphf(Mphf):
 
     @staticmethod
     @lru_cache(maxsize=50000)
-    def hash_for_str(data: str, seed: int) -> np.int32:
+    def _hash_for_str_compute(data: str, seed: int) -> np.int32:
+        """L1 cached computation of string hash."""
         d = np.int32(seed) if seed > 0 else MultiLevelMphf.INITIAL_HASH_SEED
 
         for c in data:
@@ -49,8 +61,16 @@ class MultiLevelMphf(Mphf):
             # there might be occasions where this causes a problem
             d = (d ^ np.int32(ord(c))) * MultiLevelMphf.HASH_MULTIPLIER
 
-
         return d & np.int32(0x7fffffff)
+
+    @staticmethod
+    def hash_for_str(data: str, seed: int) -> np.int32:
+        """
+        Compute string hash with multi-level caching.
+        L0 (pre-computed) -> L2 (shared) -> L1 (lru_cache) -> compute
+        """
+        manager = _get_cache_manager()
+        return np.int32(manager.get_str_hash(data, seed, MultiLevelMphf._hash_for_str_compute))
 
     @staticmethod
     def hash_for_int_tuple(data: Tuple[int, ...], seed: int) -> np.int32:

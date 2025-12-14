@@ -18,7 +18,8 @@ setuptools.setup(
            os.path.join("zemberek", "resources", "*.csv"),
            os.path.join("zemberek", "resources", "*.slm"),
            os.path.join("zemberek", "resources", "*.pickle"),
-           os.path.join("zemberek", "resources", "ambiguity", "*")]
+           os.path.join("zemberek", "resources", "ambiguity", "*"),
+           os.path.join("zemberek", "resources", "*.bin")]
     },
     license='Apache License 2.0',
     url='https://www.loodos.com.tr/',

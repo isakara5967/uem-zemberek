@@ -40,12 +40,22 @@ class PerceptronAmbiguityResolver(AmbiguityResolver):
         return SentenceAnalysis(sentence, l)
 
     class WordData:
-        def __init__(self, lemma: str, igs: List[str]):
+        # Cache for WordData instances
+        _cache: Dict[int, 'PerceptronAmbiguityResolver.WordData'] = {}
+
+        def __init__(self, lemma: str, igs: Tuple[str, ...], last_ig: str):
             self.lemma = lemma
             self.igs = igs
+            self._last_group = last_ig
 
         @classmethod
         def from_analysis(cls, sa: SingleAnalysis) -> 'PerceptronAmbiguityResolver.WordData':
+            # Check cache first
+            sa_id = id(sa)
+            cached = cls._cache.get(sa_id)
+            if cached is not None:
+                return cached
+
             lemma = sa.item.lemma
             sec_pos: SecondaryPos = sa.item.secondary_pos
             sp: str = '' if sec_pos == SecondaryPos.None_ else sec_pos.name
@@ -58,10 +68,14 @@ class PerceptronAmbiguityResolver(AmbiguityResolver):
                 if i == 0:
                     s = sp + s
                 igs.append(s)
-            return cls(lemma, igs)
+
+            igs_tuple = tuple(igs)
+            result = cls(lemma, igs_tuple, igs[-1] if igs else '')
+            cls._cache[sa_id] = result
+            return result
 
         def last_group(self) -> str:
-            return self.igs[-1]
+            return self._last_group
 
     class FeatureExtractor:
 
@@ -133,6 +147,8 @@ class PerceptronAmbiguityResolver(AmbiguityResolver):
             return feats
 
     class Decoder:
+        # Beam width for pruning hypotheses (limits combinatorial explosion)
+        BEAM_WIDTH = 10
 
         def __init__(self, model: WeightLookup, extractor: 'PerceptronAmbiguityResolver.FeatureExtractor'):
             self.model = model
@@ -142,28 +158,19 @@ class PerceptronAmbiguityResolver(AmbiguityResolver):
             if len(sentence) == 0:
                 raise ValueError("bestPath cannot be called with empty sentence.")
 
-            current_list: List['PerceptronAmbiguityResolver.Hypothesis'] = [
-                PerceptronAmbiguityResolver.Hypothesis(
-                    PerceptronAmbiguityResolver.sentence_begin,
-                    PerceptronAmbiguityResolver.sentence_begin,
-                    previous=None,
-                    score=np.float32(0)
-                )
-            ]
-            # current_list: OrderedDict['PerceptronAmbiguityResolver.Hypothesis', np.float32] = OrderedDict(
-            #     [
-            #         (PerceptronAmbiguityResolver.Hypothesis(
-            #             PerceptronAmbiguityResolver.sentence_begin,
-            #             PerceptronAmbiguityResolver.sentence_begin,
-            #             previous=None,
-            #             score=np.float32(0)
-            #         ), np.float32(0))
-            #     ]
-            # )
+            # Use dict for O(1) lookup instead of O(n) linear search
+            initial_hyp = PerceptronAmbiguityResolver.Hypothesis(
+                PerceptronAmbiguityResolver.sentence_begin,
+                PerceptronAmbiguityResolver.sentence_begin,
+                previous=None,
+                score=np.float32(0)
+            )
+            current_dict: Dict[int, 'PerceptronAmbiguityResolver.Hypothesis'] = {
+                hash(initial_hyp): initial_hyp
+            }
 
             for analysis_data in sentence:
-                next_list: List['PerceptronAmbiguityResolver.Hypothesis'] = []
-                # next_list: OrderedDict['PerceptronAmbiguityResolver.Hypothesis', np.float32] = OrderedDict()
+                next_dict: Dict[int, 'PerceptronAmbiguityResolver.Hypothesis'] = {}
 
                 analyses: List[SingleAnalysis] = list(analysis_data.analysis_results)
 
@@ -171,7 +178,7 @@ class PerceptronAmbiguityResolver(AmbiguityResolver):
                     analyses = [SingleAnalysis.unknown(analysis_data.inp)]
 
                 for analysis in analyses:
-                    for h in current_list:
+                    for h in current_dict.values():
                         trigram: List[SingleAnalysis] = [h.prev, h.current, analysis]
                         features = self.extractor.extract_from_trigram(trigram)
 
@@ -186,21 +193,25 @@ class PerceptronAmbiguityResolver(AmbiguityResolver):
                             score=np.float32(h.score + trigram_score)
                         )
 
-                        i, found = next(((i, c) for i, c in enumerate(next_list) if new_hyp == c), (None, None))
+                        # O(1) dict lookup instead of O(n) linear search
+                        hyp_hash = hash(new_hyp)
+                        existing = next_dict.get(hyp_hash)
 
-                        if found is not None and new_hyp.score > found.score:
-                            next_list[i] = new_hyp
-                        elif found is None:
-                            next_list.append(new_hyp)
-                        # if new_hyp in next_list:
-                        #     new_hyp.score = max(next_list[new_hyp], new_hyp.score)
+                        if existing is not None:
+                            if new_hyp.score > existing.score:
+                                next_dict[hyp_hash] = new_hyp
+                        else:
+                            next_dict[hyp_hash] = new_hyp
 
-                        # next_list[new_hyp] = new_hyp.score
-                        # next_list.append(new_hyp)
+                # Beam search: keep only top-K hypotheses to prevent explosion
+                if len(next_dict) > self.BEAM_WIDTH:
+                    sorted_hyps = sorted(next_dict.values(), key=attrgetter('score'), reverse=True)
+                    next_dict = {hash(h): h for h in sorted_hyps[:self.BEAM_WIDTH]}
 
-                current_list = next_list
+                current_dict = next_dict
 
-            for h in current_list:
+            # Final scoring
+            for h in current_dict.values():
                 trigram: List[SingleAnalysis] = [h.prev, h.current, PerceptronAmbiguityResolver.sentence_end]
                 features = self.extractor.extract_from_trigram(trigram)
 
@@ -210,7 +221,7 @@ class PerceptronAmbiguityResolver(AmbiguityResolver):
 
                 h.score += trigram_score
 
-            best = max(current_list, key=attrgetter('score'))
+            best = max(current_dict.values(), key=attrgetter('score'))
             best_score = best.score
             result: List[SingleAnalysis] = []
 
