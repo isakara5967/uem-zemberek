@@ -11,6 +11,13 @@ if TYPE_CHECKING:
 
 from zemberek.core.hash.multi_level_mphf import MultiLevelMphf
 
+# Try to import Cython optimized functions
+try:
+    from zemberek.cython.hash_functions import java_hash_code_cy
+    _USE_CYTHON = True
+except ImportError:
+    _USE_CYTHON = False
+
 # Cache manager instance (lazy initialized)
 _cache_manager = None
 
@@ -68,7 +75,11 @@ class LossyIntLookup:
     @staticmethod
     @lru_cache(maxsize=50000)
     def _java_hash_code_compute(s: str) -> np.int32:
-        """L1 cached computation of java hash code."""
+        """L1 cached computation of java hash code. Uses Cython if available."""
+        if _USE_CYTHON:
+            return np.int32(java_hash_code_cy(s))
+
+        # Fallback to NumPy implementation
         arr = np.asarray([ord(c) for c in s], dtype=np.int32)
         powers = np.arange(arr.shape[0], dtype=np.int32)[::-1]
         bases = np.full((arr.shape[0],), 31, dtype=np.int32)

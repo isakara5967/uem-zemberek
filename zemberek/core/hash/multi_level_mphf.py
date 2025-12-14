@@ -8,6 +8,13 @@ from zemberek.core.hash.mphf import Mphf
 
 np.seterr(over='ignore')
 
+# Try to import Cython optimized functions
+try:
+    from zemberek.cython.hash_functions import hash_for_str_cy, hash_for_int_tuple_cy
+    _USE_CYTHON = True
+except ImportError:
+    _USE_CYTHON = False
+
 # Cache manager instance (lazy initialized)
 _cache_manager = None
 
@@ -52,13 +59,14 @@ class MultiLevelMphf(Mphf):
     @staticmethod
     @lru_cache(maxsize=50000)
     def _hash_for_str_compute(data: str, seed: int) -> np.int32:
-        """L1 cached computation of string hash."""
+        """L1 cached computation of string hash. Uses Cython if available."""
+        if _USE_CYTHON:
+            return np.int32(hash_for_str_cy(data, seed))
+
+        # Fallback to NumPy implementation
         d = np.int32(seed) if seed > 0 else MultiLevelMphf.INITIAL_HASH_SEED
 
         for c in data:
-            # this line produces a RuntimeWarning caused by an overflow during multiplication
-            # it has the same results with original in Java, but this is not a good behaviour
-            # there might be occasions where this causes a problem
             d = (d ^ np.int32(ord(c))) * MultiLevelMphf.HASH_MULTIPLIER
 
         return d & np.int32(0x7fffffff)
@@ -74,6 +82,11 @@ class MultiLevelMphf(Mphf):
 
     @staticmethod
     def hash_for_int_tuple(data: Tuple[int, ...], seed: int) -> np.int32:
+        """Hash function for integer tuples. Uses Cython if available."""
+        if _USE_CYTHON:
+            return np.int32(hash_for_int_tuple_cy(data, seed))
+
+        # Fallback to NumPy implementation
         d = np.int32(seed) if seed > 0 else MultiLevelMphf.INITIAL_HASH_SEED
         for a in np.asarray(data, dtype=np.int32):
             d = (d ^ a) * MultiLevelMphf.HASH_MULTIPLIER
