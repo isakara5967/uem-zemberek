@@ -1,60 +1,81 @@
-# zemberek-python (Python 3.12+ Compatible Fork)
+# zemberek-python
 
-Python implementation of Natural Language Processing library for Turkish.
+**High-Performance Turkish NLP Library for Python 3.12+**
 
-This is a **maintained fork** of [Loodos/zemberek-python](https://github.com/Loodos/zemberek-python) with bug fixes and Python 3.12+ compatibility.
+A maintained, optimized fork of [Loodos/zemberek-python](https://github.com/Loodos/zemberek-python) — the Python port of [zemberek-nlp](https://github.com/ahmetaa/zemberek-nlp).
 
-## Why This Fork?
+---
 
-The original project is no longer actively maintained and has critical bugs in Python 3.12+:
+## Highlights
 
-- **OverflowError**: `Python integer 255 out of bounds for int8`
-- **OverflowError**: `Python integer 4294967296 out of bounds for int32`
-- **DeprecationWarning**: `pkg_resources` is deprecated (removed in setuptools 81+)
-- **Broken Components**: Normalizer and SpellChecker completely non-functional
+- **Python 3.12+ Compatible** — All overflow and deprecation issues fixed
+- **85-190x Faster Hash Functions** — Cython-optimized core operations
+- **3-Layer Cache System** — 99.9% cache hit rate for repeated analyses
+- **Memory Optimized** — Replaced `deepcopy` with efficient `set.copy()` operations
+- **Full Turkish Morphology** — Vowel harmony, consonant mutations, all suffix rules
 
-This fork fixes all these issues and ensures compatibility with modern Python versions.
+---
 
-## What's Fixed
+## Performance
 
-| Issue | Affected Files | Status |
-|-------|----------------|--------|
-| int8 overflow in bitwise operations | `gram_data_array.py` | Fixed |
-| int32 overflow in hash functions | `mphf.py`, `large_ngram_mphf.py` | Fixed |
-| pkg_resources deprecation | 10 files | Migrated to `importlib.resources` |
+Benchmarked on AMD Ryzen 7 5700X (8 cores), Ubuntu WSL2, Python 3.12.3
 
-See [CHANGELOG.md](CHANGELOG.md) for full details.
+### Throughput
+
+| Operation | With Cache | Without Cache |
+|-----------|------------|---------------|
+| Word Analysis | **5,767 words/sec** | 2,044 words/sec |
+| Sentence Disambiguation | **428 sent/sec** | 294 sent/sec |
+| Tokenization | 10,418 tokens/sec | — |
+| Sentence Extraction | 1,045 sent/sec | — |
+
+### Latency (Word Analysis)
+
+| Percentile | Time |
+|------------|------|
+| Mean | 0.17ms |
+| p50 | 0.45ms |
+| p99 | 1.95ms |
+
+### Cache Efficiency
+
+```
+Total Calls:    5,808,000
+L0 Hits (precomputed):  54.6%
+L2 Hits (runtime):      45.3%
+Overall Hit Rate:       99.9%
+```
+
+### Cython Speedup
+
+| Function | Pure Python | Cython | Speedup |
+|----------|-------------|--------|---------|
+| `hash_for_str` | 28.0ms | 0.3ms | **85x** |
+| `java_hash_code` | 55.4ms | 0.3ms | **190x** |
+
+---
 
 ## Installation
 
-### From GitHub (Recommended)
-
 ```bash
+# From GitHub (recommended)
 pip install git+https://github.com/isakara5967/zemberek-python.git
-```
 
-### From Source
-
-```bash
+# From source
 git clone https://github.com/isakara5967/zemberek-python.git
 cd zemberek-python
-pip install .
+pip install -e .
 ```
 
-## Dependencies
+### Requirements
 
-- `antlr4-python3-runtime==4.8`
+- Python 3.12+
 - `numpy>=1.19.0`
+- `antlr4-python3-runtime==4.8`
 
-## Supported Modules
+---
 
-| Module | Features | Status |
-|--------|----------|--------|
-| **TurkishMorphology** | Word Analysis, Word Generation, Sentence Analysis, Ambiguity Resolution | Partial |
-| **Tokenization** | Sentence Boundary Detection, Tokenization | Full |
-| **Normalization** | Spelling Suggestion, Noisy Text Normalization | Partial |
-
-## Usage
+## Quick Start
 
 ### Morphological Analysis
 
@@ -63,13 +84,22 @@ from zemberek import TurkishMorphology
 
 morphology = TurkishMorphology.create_with_defaults()
 
-# Analyze a single word
-result = morphology.analyze("kitaplar")
-for analysis in result:
+# Analyze a word
+for analysis in morphology.analyze("kitaplarımızdan"):
     print(analysis)
+# [kitap:Noun] kitap:Noun+lar:A3pl+ımız:P1pl+dan:Abl
 ```
 
-### Sentence Normalization
+### Sentence Disambiguation
+
+```python
+# Get the most likely analysis for each word in context
+result = morphology.analyze_and_disambiguate("Hava çok güzel.")
+for word in result.best_analysis():
+    print(f"{word.surface}: {word.analysis}")
+```
+
+### Text Normalization
 
 ```python
 from zemberek import TurkishMorphology, TurkishSentenceNormalizer
@@ -77,10 +107,9 @@ from zemberek import TurkishMorphology, TurkishSentenceNormalizer
 morphology = TurkishMorphology.create_with_defaults()
 normalizer = TurkishSentenceNormalizer(morphology)
 
-# Normalize informal text
 text = "slm nslsn bugun hava cok guzel"
-normalized = normalizer.normalize(text)
-print(normalized)  # "selam nasılsın bugün hava çok güzel"
+print(normalizer.normalize(text))
+# "selam nasılsın bugün hava çok güzel"
 ```
 
 ### Spell Checking
@@ -91,7 +120,6 @@ from zemberek import TurkishMorphology, TurkishSpellChecker
 morphology = TurkishMorphology.create_with_defaults()
 spell_checker = TurkishSpellChecker(morphology)
 
-# Get spelling suggestions
 suggestions = spell_checker.suggest_for_word("kitab")
 print(suggestions)  # ("kitap", "kitabı", ...)
 ```
@@ -99,105 +127,149 @@ print(suggestions)  # ("kitap", "kitabı", ...)
 ### Tokenization
 
 ```python
-from zemberek import TurkishTokenizer
+from zemberek import TurkishTokenizer, TurkishSentenceExtractor
 
+# Tokenize
 tokenizer = TurkishTokenizer.DEFAULT
-
-# Tokenize a sentence
 tokens = tokenizer.tokenize("Dr. Ahmet Bey yarın gelecek.")
 for token in tokens:
     print(f"{token.content} ({token.type_})")
+
+# Extract sentences
+extractor = TurkishSentenceExtractor()
+sentences = extractor.from_paragraph("Merhaba! Nasılsın? İyi misin?")
 ```
 
-### Sentence Boundary Detection
+---
+
+## Architecture
+
+### Cache Hierarchy
+
+```
+┌─────────────────────────────────────────┐
+│            User Request                 │
+└─────────────────┬───────────────────────┘
+                  ▼
+┌─────────────────────────────────────────┐
+│  L0: PrecomputedCache (from disk)       │ ◄─ 54.6% hit
+│  - 132K+ precomputed hash values        │
+└─────────────────┬───────────────────────┘
+                  ▼ miss
+┌─────────────────────────────────────────┐
+│  L1: LRU Cache (@lru_cache)             │ ◄─ per-function
+│  - Per-process, automatic eviction      │
+└─────────────────┬───────────────────────┘
+                  ▼ miss
+┌─────────────────────────────────────────┐
+│  L2: LocalCache (runtime dict)          │ ◄─ 45.3% hit
+│  - Session-local, no IPC overhead       │
+└─────────────────┬───────────────────────┘
+                  ▼ miss
+┌─────────────────────────────────────────┐
+│  Compute (Cython-optimized)             │ ◄─ 0.1% only
+│  - 85-190x faster than pure Python      │
+└─────────────────────────────────────────┘
+```
+
+### Optimizations Applied
+
+| Optimization | Impact | Location |
+|--------------|--------|----------|
+| Cython hash functions | 85-190x speedup | `zemberek/core/hash/` |
+| 3-layer cache | 99.9% hit rate | `zemberek/cache/` |
+| `deepcopy` → `set.copy()` | 109x faster | morphology analysis |
+| Precomputed cache | Zero-cost lookups | `resources/cache/` |
+
+---
+
+## Modules
+
+| Module | Description | Status |
+|--------|-------------|--------|
+| `TurkishMorphology` | Word analysis, generation, disambiguation | Full |
+| `TurkishTokenizer` | Tokenization with Turkish rules | Full |
+| `TurkishSentenceExtractor` | Sentence boundary detection | Full |
+| `TurkishSentenceNormalizer` | Informal text normalization | Full |
+| `TurkishSpellChecker` | Spelling suggestions | Full |
+
+---
+
+## Why This Fork?
+
+The original [Loodos/zemberek-python](https://github.com/Loodos/zemberek-python) is no longer maintained and has critical issues in Python 3.12+:
+
+| Issue | Impact | Status |
+|-------|--------|--------|
+| `OverflowError: int 255 out of bounds for int8` | Crashes on load | Fixed |
+| `OverflowError: int 4294967296 out of bounds for int32` | Hash failures | Fixed |
+| `pkg_resources` deprecation | Breaks in setuptools 81+ | Migrated |
+| Slow hash computations | Poor performance | Optimized |
+
+---
+
+## Running Benchmarks
+
+```bash
+# Full benchmark with cache
+python benchmark/full_benchmark_v2.py --limit 10000
+
+# Cold start benchmark (no cache)
+python benchmark/cold_start_benchmark.py --limit 10000
+```
+
+---
+
+## Technical Notes
+
+### Java Compatibility
+
+This library replicates Java's integer overflow behavior for hash functions:
 
 ```python
-from zemberek import TurkishSentenceExtractor
-
-extractor = TurkishSentenceExtractor.DEFAULT
-
-text = "Merhaba! Bugün hava çok güzel. Yarın yağmur yağacak mı?"
-sentences = extractor.from_paragraph(text)
-for sentence in sentences:
-    print(sentence)
+# Java: int wraps at 32-bit boundary
+# Python: integers have arbitrary precision
+# Solution: numpy.int32 with overflow handling
 ```
 
-## Performance
+### Turkish Language Handling
 
-Benchmarks run on AMD Ryzen 7 5700X, Ubuntu (WSL2), Python 3.12.3:
+Full support for Turkish morphology:
 
-### Initialization Time
+- **Vowel harmony** (büyük/küçük ünlü uyumu)
+- **Consonant softening** (p→b, ç→c, t→d, k→ğ)
+- **Vowel dropping** (burun→burnu, şehir→şehri)
+- **Buffer letters** (y, n, s, ş insertion)
+- **All suffix combinations** (noun, verb, derivational)
 
-| Component | Time | Memory |
-|-----------|------|--------|
-| TurkishMorphology | 6.92s | 130.3 MB |
-| TurkishSentenceNormalizer | 18.33s | 364.5 MB |
-| TurkishSpellChecker | 18.86s | 157.1 MB |
-| TurkishTokenizer | <0.01s | N/A |
+---
 
-### Runtime Performance
-
-| Component | Items | Total Time | Avg Time | Throughput |
-|-----------|-------|------------|----------|------------|
-| Morphology Analysis | 1000 words | <0.01s | <0.01ms | ~6.7M/sec* |
-| Sentence Normalization | 100 sentences | 0.88s | 8.81ms | 113/sec |
-| Spell Checker | 100 words | 0.97s | 9.66ms | 103/sec |
-| Tokenization | 100 sentences | 0.01s | 0.08ms | 12,162/sec |
-
-*Morphology uses internal caching, so repeated analyses are nearly instant.
-
-Run benchmarks yourself:
-```bash
-python benchmarks/benchmark.py
-```
-
-## Notes
-
-This project is a Python port of the original Java implementation. Some adjustments were necessary due to differences between Java and Python:
-
-- Java silently handles integer overflows, while Python/NumPy raises errors
-- We use `numpy.int32` to replicate Java's 4-byte int behavior
-- Overflow warnings are suppressed in specific modules for compatibility
-
-## Credits & Acknowledgments
-
-This project is built upon the excellent work of:
+## Credits
 
 ### Original Projects
 
-| Project | Author(s) | Description |
-|---------|-----------|-------------|
-| [zemberek-nlp](https://github.com/ahmetaa/zemberek-nlp) | Ahmet A. Akin | Original Java NLP library for Turkish |
-| [zemberek-python](https://github.com/Loodos/zemberek-python) | Loodos | Python port of zemberek-nlp |
+- [zemberek-nlp](https://github.com/ahmetaa/zemberek-nlp) by Ahmet A. Akın — Original Java library
+- [zemberek-python](https://github.com/Loodos/zemberek-python) by Loodos — Python port
 
-### Original Contributors (Loodos/zemberek-python)
+### Original Contributors
 
-- [Harun Uz](https://github.com/harun-loodos) - Lead developer
+- [Harun Uz](https://github.com/harun-loodos)
 - [Furkan Unlturk](https://github.com/futurk)
 
-### About This Fork
+### This Fork
 
-This fork is maintained by [isakara5967](https://github.com/isakara5967) for the [UEM Project](https://github.com/isakara5967/UEM).
+Maintained for the [UEM Project](https://github.com/isakara5967/UEM). We provide bug fixes, compatibility updates, and performance optimizations. Core algorithms belong to original authors.
 
-**We only provide bug fixes and compatibility updates.** All core algorithms and implementations belong to the original authors.
-
-We are grateful to the Turkish NLP community for their contributions.
+---
 
 ## License
 
-Apache License 2.0 (same as original)
+Apache License 2.0
 
-## Contributing
-
-Issues and pull requests are welcome. Please ensure your changes:
-
-1. Don't break existing functionality
-2. Include tests if applicable
-3. Follow the existing code style
+---
 
 ## Links
 
 - [Original zemberek-nlp (Java)](https://github.com/ahmetaa/zemberek-nlp)
 - [Original zemberek-python](https://github.com/Loodos/zemberek-python)
 - [This Fork](https://github.com/isakara5967/zemberek-python)
-- [UEM Project](https://github.com/isakara5967/UEM)

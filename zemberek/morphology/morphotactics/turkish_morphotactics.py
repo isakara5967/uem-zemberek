@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-from copy import deepcopy
 from typing import Dict, Set, List, Tuple, Union, TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -1498,7 +1497,7 @@ class StemTransitionsBase:
 
         modified_seq = dic_item.pronunciation
         original_attrs = self.calculate_attributes(dic_item.pronunciation)
-        modified_attrs = deepcopy(original_attrs)
+        modified_attrs = original_attrs.copy()
         modified_root_state = None  # MorphemeState
         unmodified_root_state = None  # MorphemeState
 

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import logging
 
-from copy import deepcopy
 from typing import List, Dict, Tuple, TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -109,7 +108,7 @@ class RuleBasedAnalyzer:
                             tail_equals_surface = TurkishAlphabet.INSTANCE.equals_ignore_diacritics(path.tail, surface)\
                                 if self.ascii_tolerant else path.tail == surface
 
-                            attributes = deepcopy(path.phonetic_attributes) if tail_equals_surface else \
+                            attributes = path.phonetic_attributes.copy() if tail_equals_surface else \
                                 AttributesHelper.get_morphemic_attributes(surface, path.phonetic_attributes)
                             attributes.discard(PhoneticAttribute.CannotTerminate)
                             last_token = suffix_transition.get_last_template_token()

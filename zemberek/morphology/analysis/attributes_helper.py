@@ -1,4 +1,3 @@
-from copy import deepcopy
 from typing import Set
 
 from zemberek.core.turkish import TurkishAlphabet, PhoneticAttribute
@@ -18,7 +17,7 @@ class AttributesHelper:
             predecessor_attrs = set()
 
         if not seq:
-            return deepcopy(predecessor_attrs)
+            return predecessor_attrs.copy()
         else:
             attrs = set()
             if cls.alphabet.contains_vowel(seq):
@@ -44,7 +43,7 @@ class AttributesHelper:
                 else:
                     attrs.add(PhoneticAttribute.FirstLetterConsonant)
             else:
-                attrs = deepcopy(predecessor_attrs)
+                attrs = predecessor_attrs.copy()
                 attrs.update(cls.NO_VOWEL_ATTRIBUTES)
                 attrs.discard(PhoneticAttribute.LastLetterVowel)
                 attrs.discard(PhoneticAttribute.ExpectsConsonant)
